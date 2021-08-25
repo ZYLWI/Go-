@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option go_package = "./proto";
+
+// The stream service definition
+service Greeter {
+    // Server-side streaming RPC
+    rpc GetStream(StreamRequestData) returns (stream StreamResponseData){}
+
+    // Client-side streaming RPC
+    rpc PutStream(stream StreamRequestData) returns (StreamResponseData) {}
+
+    // Bidirectional streaming RPC
+    rpc AllStream(stream StreamRequestData) returns (stream StreamResponseData) {}
+}
+
+message StreamRequestData {
+    string data = 1;
+}
+
+message StreamResponseData {
+    string data = 1;
+}
