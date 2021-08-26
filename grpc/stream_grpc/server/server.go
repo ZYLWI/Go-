@@ -1,29 +1,74 @@
 package main
 
 import (
-	"google.golang.org/grpc"
+    "io"
+    "fmt"
 	"net"
-	"stream_grpc/proto"
+    "time"
+	"google.golang.org/grpc"
+	pb "stream_grpc/proto"
 )
 
-const PORT = ":50052"
+const PORT = ":50055"
 
-type Server struct {
+type server struct {
+    pb.UnimplementedGreeterServer
 }
 
 // Server-side streaming RPC
-func (s *Server) GetStream(*StreamRequestData, Greeter_GetStreamServer) error {
+func (s *server) GetStream(req *pb.StreamRequestData, res pb.Greeter_GetStreamServer) error {
+    i := 0
+    for {
+        i ++
+        _ = res.Send(&pb.StreamResponseData{
+            Data: fmt.Sprintf("server send %v", i),
+        })
+        time.Sleep(time.Second)
+        if i >= 10 {
+            break
+        }
+    }
 	return nil
 }
 
 // Client-side Steaming RPC
-func (s *Server) PutStream(Greeter_PutStreamServer) error {
-	return nil
+func (s *server) PutStream(stream pb.Greeter_PutStreamServer) error {
+    for {
+        data, err := stream.Recv()
+        if err == io.EOF {
+            return stream.SendAndClose(&pb.StreamResponseData{
+                Data: "server stream will be close",
+            })
+        }
+        if err != nil {
+            fmt.Println(err)
+            return err
+        }
+        fmt.Println(data.Data)
+    }
 }
 
 // Bidirectional streaming RPC
-func (s *Server) AllStream(Greeter_AllStreamServer) error {
-	return nil
+func (s *server) AllStream(stream pb.Greeter_AllStreamServer) error {
+    for {
+        in, err := stream.Recv()
+        if err == io.EOF{
+            fmt.Println("client has been end, %v", time.Now())
+            return nil
+        }
+        if err != nil {
+            fmt.Println("server recv has err: %v", err)
+            return err
+        }
+
+        fmt.Println("stream recv info %v", in)
+
+        if err := stream.Send(&pb.StreamResponseData{
+            Data: fmt.Sprintf("server send"),
+        }); err != nil {
+            return err
+        }
+    }
 }
 
 func main() {
@@ -32,5 +77,9 @@ func main() {
 		panic(err)
 	}
 	s := grpc.NewServer()
-	proto.RegisterGreeterServer(s, &server{})
+	pb.RegisterGreeterServer(s, &server{})
+    err = s.Serve(lis)
+    if err != nil {
+        panic(err)
+    }
 }
